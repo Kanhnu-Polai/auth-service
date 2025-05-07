@@ -11,7 +11,7 @@ public class AuthController {
 	
 	@GetMapping("/sinup")
 	public String signUp() {
-		return "Sign";
+		return "Sign Up To application";
 	}
 
 }
