@@ -18,11 +18,15 @@ import com.skillverify.authservice.dto.SignUpRequestDto;
 import com.skillverify.authservice.entity.User;
 import com.skillverify.authservice.errorcodeenum.ErrorCodeEnum;
 import com.skillverify.authservice.exception.UserAlreadyExistsException;
+import com.skillverify.authservice.httpengine.NotificationEngine;
 import com.skillverify.authservice.repository.UserRepository;
 import com.skillverify.authservice.security.jwtutils.JwtUtils;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestController
 @RequestMapping("/api/auth")
+@Slf4j
 public class AuthController {
 	
 	@Autowired
@@ -37,6 +41,9 @@ public class AuthController {
 	@Autowired
 	private PasswordEncoder passwordEncoder;
 	
+	@Autowired
+	private NotificationEngine notificationEngine;
+	
 	@PostMapping("/signup")
 	public ResponseEntity<String> signUp(@RequestBody SignUpRequestDto signUpRequestDto) {
 		
@@ -50,9 +57,16 @@ public class AuthController {
 				.password(passwordEncoder.encode(signUpRequestDto.getPassword()))
 				.role(signUpRequestDto.getRole())
 				.build();
-		//Save the user to the database
 		
 		userRepository.save(user);
+		
+		try {
+			notificationEngine.makeCallToNotificationService(user.getEmail(), "Welcome To SkillVerify",
+					"Welcome to SkillVerify, " + user.getName() + ". Your account has been created successfully.");
+			
+		} catch (Exception e) {
+			log.error("Failed to send email notification: {}", e.getMessage());
+		}
 		return ResponseEntity.ok("User registered successfully");
 	}
 	
