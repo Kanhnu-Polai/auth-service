@@ -16,6 +16,8 @@ import com.skillverify.authservice.dto.AuthResponseDto;
 import com.skillverify.authservice.dto.LoginRequestDto;
 import com.skillverify.authservice.dto.SignUpRequestDto;
 import com.skillverify.authservice.entity.User;
+import com.skillverify.authservice.errorcodeenum.ErrorCodeEnum;
+import com.skillverify.authservice.exception.UserAlreadyExistsException;
 import com.skillverify.authservice.repository.UserRepository;
 import com.skillverify.authservice.security.jwtutils.JwtUtils;
 
@@ -35,11 +37,11 @@ public class AuthController {
 	@Autowired
 	private PasswordEncoder passwordEncoder;
 	
-	@PostMapping("/sinup")
+	@PostMapping("/signup")
 	public ResponseEntity<String> signUp(@RequestBody SignUpRequestDto signUpRequestDto) {
 		
 		if(userRepository.findByEmail(signUpRequestDto.getEmail()).isPresent()) {
-			return ResponseEntity.badRequest().body("Email already exists");
+			throw new UserAlreadyExistsException(ErrorCodeEnum.USER_ALREADY_EXISTS);
 		}
 		// Create a new user entity
 		User user = User.builder()
@@ -72,7 +74,7 @@ public class AuthController {
 	    String jwtToken = jwtUtils.generateToken(userDetails);
 
 	    // 4. Return the token in response
-	    return ResponseEntity.ok(new AuthResponseDto(jwtToken));
+	    return ResponseEntity.ok(new AuthResponseDto(jwtToken, userDetails.getUsername(), userDetails.getAuthorities().toString()));
 	}
 	
 	

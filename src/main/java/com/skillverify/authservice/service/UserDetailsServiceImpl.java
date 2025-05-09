@@ -10,6 +10,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import com.skillverify.authservice.entity.User;
+import com.skillverify.authservice.errorcodeenum.ErrorCodeEnum;
+import com.skillverify.authservice.exception.UserNotFoundException;
 import com.skillverify.authservice.repository.UserRepository;
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
@@ -20,7 +22,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 	public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
 		// Fetch the user from the database using the email
 		User user = userRepository.findByEmail(email)
-				.orElseThrow(()->new UsernameNotFoundException("User Not Found with email: " + email));
+				.orElseThrow(()->new UserNotFoundException(ErrorCodeEnum.USER_NOT_FOUND));
 		return new org.springframework.security.core.userdetails.User(
 				user.getEmail(),
 				user.getPassword(), 
