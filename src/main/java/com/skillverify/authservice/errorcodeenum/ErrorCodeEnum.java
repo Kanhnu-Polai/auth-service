@@ -8,7 +8,9 @@ import lombok.Getter;
 public enum ErrorCodeEnum {
     USER_ALREADY_EXISTS("1000", "User already exists"),
     INVALID_CREDENTIALS("1001", "Invalid credentials"),
-    USER_NOT_FOUND("1002", "User not found");
+    USER_NOT_FOUND("1002", "User not found"),
+    TOKEN_EXPIRED("1003","Token is invalid or expired");
+	
 	
 
     private final String code;

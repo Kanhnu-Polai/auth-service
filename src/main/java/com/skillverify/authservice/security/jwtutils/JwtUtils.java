@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
+import com.skillverify.authservice.utils.Role;
+
 import java.security.Key;
 import java.util.Date;
 
@@ -18,10 +20,11 @@ public class JwtUtils {
     private final String secret = "skillverifyskillverifyskillverify12";
     private final Key key = Keys.hmacShaKeyFor(secret.getBytes());
 
-    public String generateToken(UserDetails userDetails) {
+    public String generateToken(UserDetails userDetails,Role role) {
     	log.info("Generating token for user: {}", userDetails.getUsername());
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
+                .claim("role",role )
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hours
                 .signWith(key, SignatureAlgorithm.HS256)
