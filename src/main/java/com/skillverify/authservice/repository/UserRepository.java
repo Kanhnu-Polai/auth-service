@@ -11,5 +11,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	// Custom query method to find a user by email
 	Optional<User> findByEmail(String email);
 	boolean existsByEmail(String email);
+	void deleteByEmail(String email);
 
 }

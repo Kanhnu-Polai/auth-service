@@ -19,12 +19,15 @@ import com.skillverify.authservice.dto.LoginRequestDto;
 import com.skillverify.authservice.dto.SignUpRequestDto;
 import com.skillverify.authservice.entity.User;
 import com.skillverify.authservice.exception.TokenExpireException;
+import com.skillverify.authservice.exception.TokenNullException;
 import com.skillverify.authservice.exception.UserAlreadyExistsException;
 import com.skillverify.authservice.httpengine.NotificationEngine;
+import com.skillverify.authservice.httpengine.UserServiceEngine;
 import com.skillverify.authservice.repository.UserRepository;
 import com.skillverify.authservice.security.jwtutils.JwtUtils;
 import com.skillverify.authservice.utils.Role;
 
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
@@ -47,18 +50,31 @@ public class AuthController {
 
     @Autowired
     private NotificationEngine notificationEngine;
+    
+    @Autowired
+    private UserServiceEngine userServiceEngine;
 
     private final String className = this.getClass().getSimpleName();
 
+  
     @PostMapping("/signup")
     public ResponseEntity<String> signUp(@RequestBody SignUpRequestDto signUpRequestDto) {
         String methodName = "signUp";
         log.info("{} || {}() : Received signup request for email: {}", className, methodName, signUpRequestDto.getEmail());
+        
+        // Validate request
+        if(signUpRequestDto.getEmail() == null || signUpRequestDto.getPassword() == null) {
+			log.warn("{} || {}() : Email or password is null in signup request", className, methodName);
+			return ResponseEntity.badRequest().body("Email and password must not be null");
+		}
 
+        
+        // 1. Check in database if user exist
         if (userRepository.findByEmail(signUpRequestDto.getEmail()).isPresent()) {
             log.warn("{} || {}() : Email already exists: {}", className, methodName, signUpRequestDto.getEmail());
             throw new UserAlreadyExistsException();
         }
+        log.info("{} || {}() : Email not found, proceeding with signup for: {}", className, methodName, signUpRequestDto.getEmail());
 
         try {
             User user = User.builder()
@@ -67,9 +83,36 @@ public class AuthController {
                     .password(passwordEncoder.encode(signUpRequestDto.getPassword()))
                     .role(signUpRequestDto.getRole())
                     .build();
-
+            
+           
+            // 2.Save in database auth-datababe
             userRepository.save(user);
             log.info("{} || {}() : User saved successfully: {}", className, methodName, user.getEmail());
+            
+            
+            // 3.Generate internal token for the user 
+            
+            Authentication authentication = authenticationManager.authenticate(
+            		new UsernamePasswordAuthenticationToken(
+            				signUpRequestDto.getEmail(),
+            				signUpRequestDto.getPassword())
+            		);
+            
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String internalToken = jwtUtils.generateToken(userDetails, signUpRequestDto.getRole());
+            
+            
+            boolean success = saveUser(internalToken, signUpRequestDto.getEmail(), signUpRequestDto.getRole().toString());
+            
+            if(!success) {
+            	// delete user from auth-db
+            	// return ResponseEnttity as internal server error
+            	log.error("{} || {}() : Failed to save user in user-service for email: {}", className, methodName, signUpRequestDto.getEmail());
+            	userRepository.deleteByEmail(signUpRequestDto.getEmail());
+            	return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to register user in user-service");
+            
+            }
+    
 
             notificationEngine.makeCallToNotificationService(user.getEmail(), "Welcome To SkillVerify",
                     "Welcome to SkillVerify, " + user.getName() + ". Your account has been created successfully.");
@@ -100,6 +143,8 @@ public class AuthController {
             String jwtToken = jwtUtils.generateToken(userDetails, getRoleFromEmail(loginRequestDto.getEmail()));
 
             log.info("{} || {}() : JWT Token generated for user: {}", className, methodName, userDetails.getUsername());
+            
+            
 
             return ResponseEntity.ok(new AuthResponseDto(jwtToken, userDetails.getUsername(), userDetails.getAuthorities().toString()));
 
@@ -155,6 +200,17 @@ public class AuthController {
 
     private Role getRoleFromEmail(String email) {
         return userRepository.findByEmail(email).map(User::getRole).orElse(null);
+    }
+    
+    
+    private boolean saveUser(String token,String email,String role) {
+    	if(token == null) {
+    		throw new TokenNullException();
+    	}
+    	
+    return userServiceEngine.callUserService(email, token, role);
+    	
+    	
     }
 
 }

@@ -68,4 +68,17 @@ public class GobalExceptionHandler {
                 HttpStatus.INTERNAL_SERVER_ERROR
         );
     }
+    
+    
+    @ExceptionHandler(TokenNullException.class)
+    public ResponseEntity<ErrorResponse> handleTokenNullException(TokenNullException ex){
+    	
+    	ErrorResponse response = new ErrorResponse(
+    			ErrorCodeEnum.NULL_TOKEN.getCode(),
+    			ErrorCodeEnum.NULL_TOKEN.getMessage());
+    	
+    	
+    	return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+    
 }
