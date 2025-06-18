@@ -2,22 +2,26 @@ package com.skillverify.authservice.httpengine;
 
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class NotificationEngine {
 
     private final RestClient restClient;
 
-    public NotificationEngine(RestClient.Builder restClientBuilder) {
-        this.restClient = restClientBuilder.baseUrl("http://localhost:5001").build();
-    }
+  
+    @Value("${notification.service.base-url}")
+    private String notificationServiceBaseUrl;
+   
 
     public ResponseEntity<String> makeCallToNotificationService(String toEmail, String subject, String message) {
         log.info("Invoked makeCallToNotificationService with toEmail: {}, subject: {}", toEmail, subject);
@@ -30,7 +34,7 @@ public class NotificationEngine {
 
         ResponseEntity<String> response = restClient
                 .post()
-                .uri("/send-email")
+                .uri( notificationServiceBaseUrl+"/send-email")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(requestBody)
                 .retrieve()

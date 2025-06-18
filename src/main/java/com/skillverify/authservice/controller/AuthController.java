@@ -27,7 +27,6 @@ import com.skillverify.authservice.repository.UserRepository;
 import com.skillverify.authservice.security.jwtutils.JwtUtils;
 import com.skillverify.authservice.utils.Role;
 
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
@@ -36,181 +35,175 @@ import lombok.extern.slf4j.Slf4j;
 @CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
 
-    @Autowired
-    private UserRepository userRepository;
+	@Autowired
+	private UserRepository userRepository;
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
+	@Autowired
+	private AuthenticationManager authenticationManager;
 
-    @Autowired
-    private JwtUtils jwtUtils;
+	@Autowired
+	private JwtUtils jwtUtils;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+	@Autowired
+	private PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private NotificationEngine notificationEngine;
-    
-    @Autowired
-    private UserServiceEngine userServiceEngine;
+	@Autowired
+	private NotificationEngine notificationEngine;
 
-    private final String className = this.getClass().getSimpleName();
+	@Autowired
+	private UserServiceEngine userServiceEngine;
 
-  
-    @PostMapping("/signup")
-    public ResponseEntity<String> signUp(@RequestBody SignUpRequestDto signUpRequestDto) {
-        String methodName = "signUp";
-        log.info("{} || {}() : Received signup request for email: {}", className, methodName, signUpRequestDto.getEmail());
-        
-        // Validate request
-        if(signUpRequestDto.getEmail() == null || signUpRequestDto.getPassword() == null) {
+	private final String className = this.getClass().getSimpleName();
+
+//	@org.springframework.transaction.annotation.Transactional
+	@PostMapping("/signup")
+	public ResponseEntity<String> signUp(@RequestBody SignUpRequestDto signUpRequestDto) {
+		String methodName = "signUp";
+		log.info("{} || {}() : Received signup request for email: {}", className, methodName,
+				signUpRequestDto.getEmail());
+
+		// Validate request
+		if (signUpRequestDto.getEmail() == null || signUpRequestDto.getPassword() == null) {
 			log.warn("{} || {}() : Email or password is null in signup request", className, methodName);
 			return ResponseEntity.badRequest().body("Email and password must not be null");
 		}
 
-        
-        // 1. Check in database if user exist
-        if (userRepository.findByEmail(signUpRequestDto.getEmail()).isPresent()) {
-            log.warn("{} || {}() : Email already exists: {}", className, methodName, signUpRequestDto.getEmail());
-            throw new UserAlreadyExistsException();
-        }
-        log.info("{} || {}() : Email not found, proceeding with signup for: {}", className, methodName, signUpRequestDto.getEmail());
+		// 1. Check in database if user exist
+		if (userRepository.findByEmail(signUpRequestDto.getEmail()).isPresent()) {
+			log.warn("{} || {}() : Email already exists: {}", className, methodName, signUpRequestDto.getEmail());
+			throw new UserAlreadyExistsException();
+		}
+		log.info("{} || {}() : Email not found, proceeding with signup for: {}", className, methodName,
+				signUpRequestDto.getEmail());
 
-        try {
-            User user = User.builder()
-                    .name(signUpRequestDto.getName())
-                    .email(signUpRequestDto.getEmail())
-                    .password(passwordEncoder.encode(signUpRequestDto.getPassword()))
-                    .role(signUpRequestDto.getRole())
-                    .build();
-            
-           
-            // 2.Save in database auth-datababe
-            userRepository.save(user);
-            log.info("{} || {}() : User saved successfully: {}", className, methodName, user.getEmail());
-            
-            
-            // 3.Generate internal token for the user 
-            
-            Authentication authentication = authenticationManager.authenticate(
-            		new UsernamePasswordAuthenticationToken(
-            				signUpRequestDto.getEmail(),
-            				signUpRequestDto.getPassword())
-            		);
-            
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-            String internalToken = jwtUtils.generateToken(userDetails, signUpRequestDto.getRole());
-            
-            
-            boolean success = saveUser(internalToken, signUpRequestDto.getEmail(), signUpRequestDto.getRole().toString());
-            
-            if(!success) {
-            	// delete user from auth-db
-            	// return ResponseEnttity as internal server error
-            	log.error("{} || {}() : Failed to save user in user-service for email: {}", className, methodName, signUpRequestDto.getEmail());
-            	userRepository.deleteByEmail(signUpRequestDto.getEmail());
-            	return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to register user in user-service");
-            
-            }
-    
+		try {
+			User user = User.builder().name(signUpRequestDto.getName()).email(signUpRequestDto.getEmail())
+					.password(passwordEncoder.encode(signUpRequestDto.getPassword())).role(signUpRequestDto.getRole())
+					.build();
 
-            notificationEngine.makeCallToNotificationService(user.getEmail(), "Welcome To SkillVerify",
-                    "Welcome to SkillVerify, " + user.getName() + ". Your account has been created successfully.");
+			// 2.Save in database auth-datababe
+			userRepository.save(user);
+			log.info("{} || {}() : User saved successfully: {}", className, methodName, user.getEmail());
 
-            log.info("{} || {}() : Notification sent successfully to {}", className, methodName, user.getEmail());
-        } catch (Exception e) {
-            log.error("{} || {}() : Exception occurred while signup or notification: {}", className, methodName, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Something went wrong during registration");
-        }
+			// 3.Generate internal token for the user
 
-        return ResponseEntity.ok("User registered successfully");
-    }
+			Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
+					signUpRequestDto.getEmail(), signUpRequestDto.getPassword()));
 
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponseDto> login(@RequestBody LoginRequestDto loginRequestDto) {
-        String methodName = "login";
-        log.info("{} || {}() : Login request received for email: {}", className, methodName, loginRequestDto.getEmail());
+			UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+			String internalToken = jwtUtils.generateToken(userDetails, signUpRequestDto.getRole());
 
-        try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequestDto.getEmail(),
-                            loginRequestDto.getPassword()
-                    )
-            );
+			boolean success = saveUser(internalToken, signUpRequestDto.getEmail(),
+					signUpRequestDto.getRole().toString());
 
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-            String jwtToken = jwtUtils.generateToken(userDetails, getRoleFromEmail(loginRequestDto.getEmail()));
+			if (!success) {
+				// delete user from auth-db
+				// return ResponseEnttity as internal server error
+				log.error("{} || {}() : Failed to save user in user-service for email: {}", className, methodName,
+						signUpRequestDto.getEmail());
+				userRepository.deleteByEmail(signUpRequestDto.getEmail());
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+						.body("Failed to register user in user-service");
 
-            log.info("{} || {}() : JWT Token generated for user: {}", className, methodName, userDetails.getUsername());
-            
-            
+			}
 
-            return ResponseEntity.ok(new AuthResponseDto(jwtToken, userDetails.getUsername(), userDetails.getAuthorities().toString()));
+			notificationEngine.makeCallToNotificationService(user.getEmail(), "Welcome To SkillVerify",
+					"Welcome to SkillVerify, " + user.getName() + ". Your account has been created successfully.");
 
-        } catch (Exception e) {
-            log.error("{} || {}() : Invalid login attempt for email: {}, Error: {}", className, methodName, loginRequestDto.getEmail(), e.getMessage());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
-        }
-    }
+			log.info("{} || {}() : Notification sent successfully to {}", className, methodName, user.getEmail());
+		} catch (Exception e) {
+			log.error("{} || {}() : Exception occurred while signup or notification: {}", className, methodName,
+					e.getMessage());
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body("Something went wrong during registration");
+		}
 
-    @GetMapping("/validate")
-    public ResponseEntity<Map<String, Object>> validateToken(@RequestHeader("Authorization") String authHeader) {
-        String methodName = "validateToken";
-        log.info("{} || {}() : Token validation request received", className, methodName);
+		return ResponseEntity.ok("User registered successfully");
+	}
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.warn("{} || {}() : Missing or malformed Authorization header", className, methodName);
-            throw new TokenExpireException();
-        }
+	@PostMapping("/login")
+	public ResponseEntity<AuthResponseDto> login(@RequestBody LoginRequestDto loginRequestDto) {
+		String methodName = "login";
+		log.info("{} || {}() : Login request received for email: {}", className, methodName,
+				loginRequestDto.getEmail());
 
-        try {
-            String token = authHeader.substring(7);
-            String email = jwtUtils.extractUsername(token);
+		try {
+			Authentication authentication = authenticationManager.authenticate(
+					new UsernamePasswordAuthenticationToken(loginRequestDto.getEmail(), loginRequestDto.getPassword()));
 
-            if (email == null || jwtUtils.isTokenExpired(token)) {
-                log.warn("{} || {}() : Token is invalid or expired", className, methodName);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "Invalid or expired token"));
-            }
+			UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+			String jwtToken = jwtUtils.generateToken(userDetails, getRoleFromEmail(loginRequestDto.getEmail()));
 
-            Optional<User> optionalUser = userRepository.findByEmail(email);
-            if (optionalUser.isEmpty()) {
-                log.warn("{} || {}() : User not found for email: {}", className, methodName, email);
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("error", "User not found"));
-            }
+			log.info("{} || {}() : JWT Token generated for user: {}", className, methodName, userDetails.getUsername());
 
-            User user = optionalUser.get();
-            Map<String, Object> response = new HashMap<>();
-            response.put("email", user.getEmail());
-            response.put("role", user.getRole());
-            response.put("status", "valid");
+			return ResponseEntity.ok(
+					new AuthResponseDto(jwtToken, userDetails.getUsername(), userDetails.getAuthorities().toString()));
 
-            log.info("{} || {}() : Token validated for user: {}", className, methodName, user.getEmail());
+		} catch (Exception e) {
+			log.error("{} || {}() : Invalid login attempt for email: {}, Error: {}", className, methodName,
+					loginRequestDto.getEmail(), e.getMessage());
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
+		}
+	}
 
-            return ResponseEntity.ok(response);
+	@GetMapping("/validate")
+	public ResponseEntity<Map<String, Object>> validateToken(@RequestHeader("Authorization") String authHeader) {
+		String methodName = "validateToken";
+		log.info("{} || {}() : Token validation request received", className, methodName);
 
-        } catch (Exception e) {
-            log.error("{} || {}() : Error during token validation: {}", className, methodName, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Token validation failed"));
-        }
-    }
+		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+			log.warn("{} || {}() : Missing or malformed Authorization header", className, methodName);
+			throw new TokenExpireException();
+		}
 
-    private Role getRoleFromEmail(String email) {
-        return userRepository.findByEmail(email).map(User::getRole).orElse(null);
-    }
-    
-    
-    private boolean saveUser(String token,String email,String role) {
-    	if(token == null) {
-    		throw new TokenNullException();
-    	}
-    	
-    return userServiceEngine.callUserService(email, token, role);
-    	
-    	
-    }
+		try {
+			String token = authHeader.substring(7);
+			String email = jwtUtils.extractUsername(token);
+
+			if (email == null || jwtUtils.isTokenExpired(token)) {
+				log.warn("{} || {}() : Token is invalid or expired", className, methodName);
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid or expired token"));
+			}
+
+			Optional<User> optionalUser = userRepository.findByEmail(email);
+			if (optionalUser.isEmpty()) {
+				log.warn("{} || {}() : User not found for email: {}", className, methodName, email);
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User not found"));
+			}
+
+			User user = optionalUser.get();
+			Map<String, Object> response = new HashMap<>();
+			response.put("email", user.getEmail());
+			response.put("role", user.getRole());
+			response.put("status", "valid");
+
+			log.info("{} || {}() : Token validated for user: {}", className, methodName, user.getEmail());
+
+			return ResponseEntity.ok(response);
+
+		} catch (Exception e) {
+			log.error("{} || {}() : Error during token validation: {}", className, methodName, e.getMessage());
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("error", "Token validation failed"));
+		}
+	}
+	
+	
+	
+	
+	
+
+	private Role getRoleFromEmail(String email) {
+		return userRepository.findByEmail(email).map(User::getRole).orElse(null);
+	}
+
+	private boolean saveUser(String token, String email, String role) {
+		if (token == null) {
+			throw new TokenNullException();
+		}
+
+		return userServiceEngine.callUserService(email, token, role);
+
+	}
 
 }

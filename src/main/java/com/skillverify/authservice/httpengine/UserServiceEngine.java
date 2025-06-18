@@ -1,5 +1,6 @@
 package com.skillverify.authservice.httpengine;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -7,28 +8,32 @@ import org.springframework.web.client.RestClient;
 
 import com.skillverify.authservice.dto.UserCreateReqDto;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class UserServiceEngine {
 	
 	private final RestClient restClient;
 	
-	public UserServiceEngine(RestClient.Builder restClient) {
-		this.restClient = restClient.baseUrl("http://localhost:8083").build();
-	}
+	
+	@Value("${user.service.base-url}")
+	private String userServiceBaseUrl;
 	
 	
 	public boolean callUserService(String email,String token,String role){
 		  log.info("Calling UserService to create user for email: {}", email);
+		  
+		  
 		  
 		 try {
 			 UserCreateReqDto reqDto = new UserCreateReqDto(email, role);
 			  
 				ResponseEntity<String> response  =  restClient
 						  .post()
-						  .uri("/api/users/create")
+						  .uri(userServiceBaseUrl+"/api/users/create")
 						  .header("Authorization", "Bearer " + token)
 						  .contentType(MediaType.APPLICATION_JSON)
 						  .body(reqDto)
