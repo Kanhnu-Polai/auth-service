@@ -34,7 +34,6 @@ public class UserServiceEngine {
 				ResponseEntity<String> response  =  restClient
 						  .post()
 						  .uri(userServiceBaseUrl+"/api/users/create")
-						  .header("Authorization", "Bearer " + token)
 						  .contentType(MediaType.APPLICATION_JSON)
 						  .body(reqDto)
 						  .retrieve()
