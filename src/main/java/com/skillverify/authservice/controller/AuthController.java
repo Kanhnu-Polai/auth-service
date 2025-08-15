@@ -205,5 +205,11 @@ public class AuthController {
 		return userServiceEngine.callUserService(email, token, role);
 
 	}
+	
+	
+	@GetMapping("/health")
+	public String health() {
+	    return "AuthService is running!";
+	}
 
 }
