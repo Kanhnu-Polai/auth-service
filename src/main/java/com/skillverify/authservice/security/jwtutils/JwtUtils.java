@@ -33,7 +33,7 @@ public class JwtUtils {
 	}
 
 	public String generateToken(UserDetails userDetails, Role role) {
-		log.info("Generating token for user: {}", userDetails.getUsername());
+		log.info("✅ Token generation started for user: {}", userDetails.getUsername());
 		return Jwts
 				.builder()
 				.setSubject(userDetails.getUsername())

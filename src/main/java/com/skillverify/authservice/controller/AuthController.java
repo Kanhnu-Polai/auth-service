@@ -18,6 +18,8 @@ import com.skillverify.authservice.dto.AuthResponseDto;
 import com.skillverify.authservice.dto.LoginRequestDto;
 import com.skillverify.authservice.dto.SignUpRequestDto;
 import com.skillverify.authservice.entity.User;
+import com.skillverify.authservice.errorcodeenum.ErrorCodeEnum;
+import com.skillverify.authservice.exception.AuthenticationFailureException;
 import com.skillverify.authservice.exception.TokenExpireException;
 import com.skillverify.authservice.exception.TokenNullException;
 import com.skillverify.authservice.exception.UserAlreadyExistsException;
@@ -27,6 +29,7 @@ import com.skillverify.authservice.repository.UserRepository;
 import com.skillverify.authservice.security.jwtutils.JwtUtils;
 import com.skillverify.authservice.utils.Role;
 
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
@@ -59,7 +62,7 @@ public class AuthController {
 	@PostMapping("/signup")
 	public ResponseEntity<String> signUp(@RequestBody SignUpRequestDto signUpRequestDto) {
 		String methodName = "signUp";
-		log.info("{} || {}() : Received signup request for email: {}", className, methodName,
+		log.info(" {} || {}() : Received signup request for email: {}", className, methodName,
 				signUpRequestDto.getEmail());
 
 		// Validate request
@@ -107,10 +110,10 @@ public class AuthController {
 
 			}
 
-			notificationEngine.makeCallToNotificationService(user.getEmail(), "Welcome To SkillVerify",
-					"Welcome to SkillVerify, " + user.getName() + ". Your account has been created successfully.");
-
-			log.info("{} || {}() : Notification sent successfully to {}", className, methodName, user.getEmail());
+//			notificationEngine.makeCallToNotificationService(user.getEmail(), "Welcome To SkillVerify",
+//					"Welcome to SkillVerify, " + user.getName() + ". Your account has been created successfully.");
+//
+//			log.info("{} || {}() : Notification sent successfully to {}", className, methodName, user.getEmail());
 		} catch (Exception e) {
 			log.error("{} || {}() : Exception occurred while signup or notification: {}", className, methodName,
 					e.getMessage());
@@ -122,25 +125,40 @@ public class AuthController {
 	}
 
 	@PostMapping("/login")
-	public ResponseEntity<AuthResponseDto> login(@RequestBody LoginRequestDto loginRequestDto) {
-		String methodName = "login";
-		log.info("{} || {}() : Login request received for email: {}", className, methodName,
-				loginRequestDto.getEmail());
+	public ResponseEntity<AuthResponseDto> login(@Valid @RequestBody LoginRequestDto loginRequestDto) {
+		
+		log.info("✅ Login request received for email: {}",loginRequestDto.getEmail());
 
 		try {
-			Authentication authentication = authenticationManager.authenticate(
+			 log.info("✅ Sending login credential to authentication manager...");
+			 Authentication authentication = authenticationManager.authenticate(
 					new UsernamePasswordAuthenticationToken(loginRequestDto.getEmail(), loginRequestDto.getPassword()));
 
+			
+			if(!authentication.isAuthenticated()) {
+				log.error("❌ Authentication failed for email: {}", loginRequestDto.getEmail());
+			    throw new AuthenticationFailureException(ErrorCodeEnum.AUTHENTICATION_FAILURE);
+			}
+			
+			log.info("✅ Authentication successful for email: {}", loginRequestDto.getEmail());
+			// Generate JWT token
+			log.info("✅ Send details to genearte JWT token form user : {}", loginRequestDto.getEmail());
 			UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+			
 			String jwtToken = jwtUtils.generateToken(userDetails, getRoleFromEmail(loginRequestDto.getEmail()));
 
-			log.info("{} || {}() : JWT Token generated for user: {}", className, methodName, userDetails.getUsername());
+			
+			log.info("✅ JWT token generated successfully for user: {}", loginRequestDto.getEmail());
+			AuthResponseDto response = AuthResponseDto.builder()
+					.token(jwtToken)
+					.email(userDetails.getUsername())
+					.role(userDetails.getAuthorities().toString())
+					.build();
 
-			return ResponseEntity.ok(
-					new AuthResponseDto(jwtToken, userDetails.getUsername(), userDetails.getAuthorities().toString()));
+			return ResponseEntity.status(HttpStatus.OK).body(response);
 
 		} catch (Exception e) {
-			log.error("{} || {}() : Invalid login attempt for email: {}, Error: {}", className, methodName,
+			log.error("{} || {}() : Invalid login attempt for email: {}, Error: {}", className, 
 					loginRequestDto.getEmail(), e.getMessage());
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
 		}

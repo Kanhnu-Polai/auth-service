@@ -34,17 +34,25 @@ public class GobalExceptionHandler {
        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
+    
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<Object> handleInvalidCredentials(InvalidCredentialsException ex) {
-        return new ResponseEntity<>(
-                Map.of(
-                        "errorCode", ex.getErrorCode(),
-                        "message", ex.getMessage(),
-                        "timestamp", LocalDateTime.now()
-                ),
-                HttpStatus.UNAUTHORIZED
-        );
+    	
+    	ErrorResponse response = ErrorResponse.builder()
+    			.errorCode(ErrorCodeEnum.INVALID_CREDENTIALS.getCode())
+    			.errorMessage(ErrorCodeEnum.INVALID_CREDENTIALS.getMessage())
+    			.build();
+    	return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
+    
+    public ResponseEntity<ErrorResponse> handleAuthenticationFailure(AuthenticationFailureException ex) {
+		ErrorResponse response = new ErrorResponse(
+				ErrorCodeEnum.AUTHENTICATION_FAILURE.getCode(),
+				ErrorCodeEnum.AUTHENTICATION_FAILURE.getMessage());
+		
+		
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+	}
 
     
     @ExceptionHandler(TokenExpireException.class)
